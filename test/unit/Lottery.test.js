@@ -115,5 +115,42 @@ const { developmentChains, networkConfig } = require("../../helper-hardhat-confi
                 await expect(vrfCoordinatorV2Mock.fulfillRandomWords(0, lottery.address)).to.be.revertedWith("nonexistent request")
                 await expect(vrfCoordinatorV2Mock.fulfillRandomWords(1, lottery.address)).to.be.revertedWith("nonexistent request")
             })
+            it("Picks a winner, resets the lottery and sends money", async function () {
+                const additionalEntrants = 3
+                const startingAccountIndex = 1 //deployer = 0 
+                const accounts = await ethers.getSigners()
+                for(let i = startingAccountIndex; i < startingAccountIndex + additionalEntrants; i++) {
+                    const accountConnectedLottery = lottery.connect(accounts[i])
+                    await accountConnectedLottery.enterLottery({ value: lotteryEntranceFee })
+                }
+                const startingTimeStamp = await lottery.getLatestTimeStamp()
+                await new Promise(async (resolve, reject) => {
+                    lottery.once("WinnerPicked", async () => {
+                        console.log("Found the event !")
+                        try {
+                            const recentWinner = await lottery.getRecentWinner()
+                            const lotteryState = await lottery.getLotteryState()
+                            const endingTimeStamp = await lottery.getLatestTimeStamp()
+                            const numPlayers = await lottery.getNumberOfPlayers()
+                            const winnerEndingBalance = await accounts[1].getBalance()
+                            assert.equal(numPlayers.toString(), "0")
+                            assert.equal(lotteryState.toString(), "0")
+                            assert(endingTimeStamp > startingTimeStamp)
+                            // This simply means that the winner should end with a balance of all of the money that every other player added to this contract
+                            assert.equal(winnerEndingBalance.toString(), winnerStartingBalance.add(lotteryEntranceFee.mul(additionalEntrants).add(lotteryEntranceFee).toString()))
+
+                        } catch(e) {
+                            reject(e)
+                        }
+                        resolve()
+                    })
+                    // Setting up listener
+                    // We fire the event listener will pick it up and resolve  
+                    const tx = await lottery.performUpkeep([])
+                    const txReceipt = await tx.wait(1)
+                    const winnerStartingBalance = await accounts[1].getBalance()
+                    await vrfCoordinatorV2Mock.fulfillRandomWords(txReceipt.events[1].args.requestId, lottery.address)
+                })
+            })
         })
     })
