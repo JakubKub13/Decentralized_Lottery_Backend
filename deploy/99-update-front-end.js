@@ -15,7 +15,7 @@ module.exports = async function () {
 async function updateContractAddresses() {
     const lottery = await ethers.getContract("Lottery")
     const chainId = network.config.chainId.toString()
-    const currentAddresses = JSON.parse(fs.readFileSync(FRONT_END_ADDRESS_FILE, "utf8"))
+    const currentAddresses = JSON.parse(fs.readFileSync(FRONT_END_ADDRESSES_FILE, "utf8"))
     if(chainId in currentAddresses) {
         if(!currentAddresses[chainId].includes(lottery.address)) {
             currentAddresses[chainId].push(lottery.address)
